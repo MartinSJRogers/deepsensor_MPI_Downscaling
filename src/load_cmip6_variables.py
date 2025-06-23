@@ -18,18 +18,30 @@ def load_cmip6_variable(cmip6_root, variable_name, start_year, end_year, pressur
     """
 
     # Path to the folder where files for this variable should be found
-    path = os.path.join(
-        cmip6_root,
-        "CMIP6/CMIP/MPI-M/MPI-ESM1-2-LR/historical/r1i1p1f1/day",
-        variable_name,
-        "gn/latest"
-    )
+    if variable_name == "ps":
+        path = os.path.join(
+            cmip6_root,
+            "CMIP6/CMIP/MPI-M/MPI-ESM1-2-LR/historical/r1i1p1f1/CFday",
+            variable_name,
+            "gn/latest"
+        )
+        
+    else:
+        path = os.path.join(
+            cmip6_root,
+            "CMIP6/CMIP/MPI-M/MPI-ESM1-2-LR/historical/r1i1p1f1/day",
+            variable_name,
+            "gn/latest"
+        )
 
     if not os.path.exists(path):
         raise FileNotFoundError(f"Directory not found: {path}")
 
     # Find file(s) for the variable
-    pattern = re.compile(rf"{variable_name}_day_MPI-ESM1-2-LR_historical_r1i1p1f1_gn_(\d{{8}})-(\d{{8}})\.nc")
+    if variable_name == "ps":
+        pattern = re.compile(rf"{variable_name}_CFday_MPI-ESM1-2-LR_historical_r1i1p1f1_gn_(\d{{8}})-(\d{{8}})\.nc")
+    else:
+        pattern = re.compile(rf"{variable_name}_day_MPI-ESM1-2-LR_historical_r1i1p1f1_gn_(\d{{8}})-(\d{{8}})\.nc")
     selected_files = []
 
     for fname in os.listdir(path):
@@ -50,8 +62,8 @@ def load_cmip6_variable(cmip6_root, variable_name, start_year, end_year, pressur
     ds = ds.sel(time=slice(f"{start_year}-01-01", f"{end_year}-12-31"))
 
     # Filter pressure level (assumes variable is 4D: time, lev, lat, lon)
-    if 'lev' in ds.dims:
-        closest_lev = ds['lev'].sel(lev=pressure_level, method='nearest')
-        ds = ds.sel(lev=closest_lev)
+    if 'plev' in ds.dims:
+        closest_lev = ds['plev'].sel(plev=pressure_level, method='nearest')
+        ds = ds.sel(plev=closest_lev)
 
     return ds
