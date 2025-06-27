@@ -1,8 +1,5 @@
-##### Manually defined variables #####
-# options : ["MetUM_perfect", "MetUM_imperfect", "HCLIM_perfect", "HCLIM_imperfect"].  
-run_type = "HCLIM_perfect"
-### Change to something you can recognise when training e.g. contain l_rate value###
-run_identifier_fn = "decades_training_stack" # To identify output weight files
+from pathlib import Path
+import os
 
 
 # Date range of data
@@ -11,6 +8,8 @@ run_identifier_fn = "decades_training_stack" # To identify output weight files
 train_range = ("1985-01-06T12:00:00.000000000", "1985-01-25T12:00:00.000000000")
 val_range = ("1985-02-06T12:00:00.000000000", "1985-02-25T12:00:00.000000000")
 """
+# train_range = ("1985-01-06T12:00:00.000000000", "1985-01-15T12:00:00.000000000")
+# val_range = ("1985-02-06T12:00:00.000000000", "1985-02-15T12:00:00.000000000")
 
 train_range = ("1985-01-06T12:00:00.000000000", "2011-02-25T12:00:00.000000000")
 val_range = ("2012-02-06T12:00:00.000000000", "2014-08-25T12:00:00.000000000")
@@ -18,11 +17,19 @@ val_range = ("2012-02-06T12:00:00.000000000", "2014-08-25T12:00:00.000000000")
 
 ### Training paramaters used irrespective of experiment ####
 ## Training parameters ##
-num_epochs = 551
+num_epochs = 500
 ### Change to 1e-5 and 5e-6 ###
-l_rate = 5e-5
+l_rate = 1e-5
 batch_size = 5
 date_subsample_factor = 5
+
+##### Manually defined variables #####
+# options : ["MetUM_perfect", "MetUM_imperfect", "HCLIM_perfect", "HCLIM_imperfect"].  
+run_type = "HCLIM_perfect"
+### Change to something you can recognise when training e.g. contain l_rate value###
+ # To identify output weight files
+run_identifier_fn = "decades_training_stack_"+str(l_rate)+"_"+str(num_epochs)+"_"+str(batch_size)+"_N2_C16_G8"
+print (run_identifier_fn)
 
 ##### End of manually defined variables #####
 
@@ -31,16 +38,20 @@ model_type = run_type.split('_')[1] # Returns perfect or imperfect
 
 ### Check these directories are correct and that you have created a weight and loss directory. 
 if rcm_model == "HCLIM":
-    BASE_DIR = "/home/users/marrog/palaeoclim/surfeit/HCLIM/MPI-ESM1-2-LR/hist/"
-    ELEV_FN = "/home/users/marrog/palaeoclim/mrogers/auxillary_files/orog_clim_ANT11_ANT11_eval_ERA5_fx.nc"
-    LAND_MASK_FN = "/home/users/marrog/palaeoclim/mrogers/auxillary_files/lsm_clim_ANT11_ANT11_eval_ERA5_fx.nc"
+    BASE_DIR = "/gws/nopw/j04/bas_palaeoclim/surfeit/HCLIM/MPI-ESM1-2-LR/hist/"
+    ELEV_FN = "/gws/nopw/j04/bas_palaeoclim/surfeit/ds_runs/data_input/auxillary_files/orog_clim_ANT11_ANT11_eval_ERA5_fx.nc"
+    LAND_MASK_FN = "/gws/nopw/j04/bas_palaeoclim/surfeit/ds_runs/data_input/auxillary_files/lsm_clim_ANT11_ANT11_eval_ERA5_fx.nc"
 elif rcm_model == "MetUM":
     BASE_DIR = '/data/hpcdata/users/marrog/DeepSensor_code/cmip_data' ## To update
 
-WEIGHT_DIR = "/home/users/marrog/palaeoclim/mrogers/model_weights"
-LOSS_DIR = "/home/users/marrog/palaeoclim/mrogers/model_losses"
+WEIGHT_DIR = "/gws/nopw/j04/bas_palaeoclim/surfeit/ds_runs/data_output/model_weights"
+LOSS_DIR = "/gws/nopw/j04/bas_palaeoclim/surfeit/ds_runs/data_output/model_losses"
 
-
+# Create the folders if they don't exist
+weight_dir_path = os.path.join(WEIGHT_DIR,run_type)
+Path(weight_dir_path).mkdir(parents=True, exist_ok=True)
+loss_dir_path = os.path.join(LOSS_DIR,run_type)
+Path(loss_dir_path).mkdir(parents=True, exist_ok=True)
 
 ## Taskloader parameters ##
 # How many days +/- time t=0 do is contained within context set
