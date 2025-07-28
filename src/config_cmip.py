@@ -8,32 +8,34 @@ import os
 train_range = ("1985-01-06T12:00:00.000000000", "1985-01-25T12:00:00.000000000")
 val_range = ("1985-02-06T12:00:00.000000000", "1985-02-25T12:00:00.000000000")
 """
-data_range = ("2009-01-01T00:00:00.000000000", "2009-01-31T00:00:00.000000000")
-train_range = ("2009-01-06T00:00:00.000000000", "2009-01-21T00:00:00.000000000")
-val_range = ("2009-01-21T00:00:00.000000000", "2009-01-23T00:00:00.000000000")
+data_range = ("2009-01-01T00:00:00.000000000", "2012-01-31T00:00:00.000000000")
+train_range = ("2009-01-06T00:00:00.000000000", "2012-01-21T00:00:00.000000000")
+val_range = ("2012-01-21T00:00:00.000000000", "2012-01-23T00:00:00.000000000")
 
 
 ### Training paramaters used irrespective of experiment ####
 ## Training parameters ##
-num_epochs = 11
+num_epochs = 151
 ### Change to 1e-5 and 5e-6 ###
 l_rate = 1e-5
-batch_size = 5
+batch_size = 2
 date_subsample_factor = 5
 
 ##### Manually defined variables #####
 # options : ["MetUM_perfect", "MetUM_imperfect", "HCLIM_perfect", "HCLIM_imperfect"].  
 run_type = "HCLIM_imperfect"
-### Change to something you can recognise when training e.g. contain l_rate value###
- # To identify output weight files
-run_identifier_fn = "decades_training_stack_"+str(l_rate)+"_"+str(num_epochs)+"_"+str(batch_size)+"_N2_C16_G8"
-print (run_identifier_fn)
 
 # Imperfect pressure level and variable selection - possible options
-#selected_vars = ["ua", "va", "ta"]
-#p_levels = [100000.,  85000.,  70000.,  50000.]
-selected_vars = ["ta"]
-p_levels = [50000.]
+selected_vars = ["ua", "va", "ta"] # More to come
+p_levels = [100000.,  85000.,  70000., 50000.]
+
+# Convert vars and levels to compact strings
+vars_str = "_".join(selected_vars)
+plevs_str = "_".join([str(int(p/1000)) for p in p_levels])  # e.g., 100000 -> "100"
+
+# Generate run idenetifier to use in output weight files
+run_identifier_fn = f"decades_training_stack_{vars_str}_{plevs_str}_{l_rate}_{num_epochs}_{batch_size}_N2_C16_G8"
+print (run_identifier_fn)
 
 ##### End of manually defined variables #####
 
@@ -43,8 +45,10 @@ model_type = run_type.split('_')[1] # Returns perfect or imperfect
 ### Check these directories are correct and that you have created a weight and loss directory. 
 if rcm_model == "HCLIM":
     BASE_DIR = "/gws/nopw/j04/bas_palaeoclim/surfeit/HCLIM/MPI-ESM1-2-LR/hist/"
-    ELEV_FN = "/gws/nopw/j04/bas_palaeoclim/surfeit/ds_runs/data_input/auxillary_files/orog_clim_ANT11_ANT11_eval_ERA5_fx.nc"
-    LAND_MASK_FN = "/gws/nopw/j04/bas_palaeoclim/surfeit/ds_runs/data_input/auxillary_files/lsm_clim_ANT11_ANT11_eval_ERA5_fx.nc"
+    ELEV_FN = "/home/users/marrog/palaeoclim/surfeit/MetUM/MetUM_PolarRES_Antarctic_11km_surface_altitude.nc"
+    LAND_MASK_FN = "/home/users/marrog/palaeoclim/surfeit/MetUM/MetUM_PolarRES_Antarctic_11km_land_binary_mask.nc"
+    #ELEV_FN = "/gws/nopw/j04/bas_palaeoclim/surfeit/ds_runs/data_input/auxillary_files/orog_clim_ANT11_ANT11_eval_ERA5_fx.nc"
+    #LAND_MASK_FN = "/gws/nopw/j04/bas_palaeoclim/surfeit/ds_runs/data_input/auxillary_files/lsm_clim_ANT11_ANT11_eval_ERA5_fx.nc"
     GCM_DIR = "/gws/nopw/j04/bas_palaeoclim/surfeit/CMIP6/MPI-ESM1-2-LR/masks"
 elif rcm_model == "MetUM":
     BASE_DIR = '/data/hpcdata/users/marrog/DeepSensor_code/cmip_data' ## To update
