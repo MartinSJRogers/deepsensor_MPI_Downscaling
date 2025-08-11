@@ -175,4 +175,82 @@ def reproject_metum(metum):
 
     metum_xr = reformat_to_xarray(metum_on_ease2sh_grid)
     
+<<<<<<< HEAD
     return metum_xr
+=======
+    return metum_xr
+
+# ###################################################################
+#
+#      EPSG3031 Re-GRID
+# 
+# ###################################################################
+
+def create_empty_grid (x_bounds, y_bounds, x_grid_spacing, y_grid_spacing, epsg6932):
+    """
+    Create empty iris cube with defined coordinate reference system, bounds and resolution.
+    """
+    x_points = np.arange(x_bounds[0]+x_grid_spacing/2, x_bounds[1], x_grid_spacing)
+    y_points = np.arange(y_bounds[0]+y_grid_spacing/2, y_bounds[1], y_grid_spacing)
+
+    xc = iris.coords.DimCoord(x_points, standard_name='projection_x_coordinate', units='m', coord_system=epsg6932)
+    yc = iris.coords.DimCoord(y_points, standard_name='projection_y_coordinate', units='m', coord_system=epsg6932)
+    for coord in [xc, yc]:
+        coord.guess_bounds()
+
+    ease2sh_template = iris.cube.Cube(np.empty((len(yc.points), len(xc.points))),
+                                          dim_coords_and_dims=[(yc, 0), (xc, 1)])
+    return ease2sh_template    
+
+
+def create_projection (projection_name):
+    if projection_name == "epsg3031":
+        # create an EPSG:3031 coordinate system for the EASE 2.0 grid
+        # see: https://epsg.io/3031
+        wgs84 = iris.coord_systems.GeogCS(semi_major_axis=6378137, inverse_flattening=298.257223563)
+        projection = iris.coord_systems.PolarStereographic(central_lat=-90.0, central_lon=0.0,
+                                                 true_scale_lat=-71.0,
+                                                 ellipsoid=wgs84)
+    elif projection_name == "epsg6932":
+        # create an EPSG:6932 coordinate system for the EASE 2.0 grid
+        # see: https://epsg.io/6932
+        wgs84 = iris.coord_systems.GeogCS(semi_major_axis=6378137, inverse_flattening=298.257223563)
+        projection = iris.coord_systems.LambertAzimuthalEqualArea(latitude_of_projection_origin=-90.0,
+                                                                longitude_of_projection_origin=0.0,
+                                                                ellipsoid=wgs84)
+        
+    return projection
+
+def reproject_mpi_3031(gcm_dataset, projection_name):
+    """
+    Reproject ERA5 and MetUM to 3031 grid and subset using small x and y bounds so there are no NaNs in the MetUM data.
+    Ensure lon_coord and lat_Coord are the correct names of the coordinates for the original ERA5 data
+    """
+    lon_coord = gcm_dataset.coord(var_name='lon')
+    for attr, value in {'units': 'degrees_east', 'standard_name': 'longitude'}.items():
+        setattr(lon_coord, attr, value)
+    lat_coord = gcm_dataset.coord(var_name='lat')
+    for attr, value in {'units': 'degrees', 'standard_name': 'latitude'}.items():
+        setattr(lat_coord, attr, value)
+    cs = iris.coord_systems.GeogCS(6367470.0)
+    for axis in ['x', 'y']:
+        gcm_dataset.coord(axis=axis, dim_coords=True).coord_system = cs
+        
+    projection = create_projection (projection_name)
+
+    # Small bonds
+    x_bounds_small = [-2.6e6, 2.6e6]
+    y_bounds_small = [2.55e6, -2.55e6]
+
+    # Grid spacing MPI - using values from Van de Meer paper.
+    x_grid_spacing_era5 = 68000.0
+    y_grid_spacing_era5 = -208000.0
+
+    ease2sh_template_era5 = create_empty_grid(x_bounds_small, y_bounds_small, x_grid_spacing_era5, y_grid_spacing_era5, projection)
+    # regrid the ERA5 data onto the EASE 2.0 SH grid
+    era5_on_ease2sh_grid = gcm_dataset.regrid(ease2sh_template_era5, iris.analysis.Linear(extrapolation_mode='mask'))
+    
+    era5_xr = reformat_to_xarray(era5_on_ease2sh_grid)
+    
+    return era5_xr
+>>>>>>> 837bbe2 (Added the use of json file for some parameters in config_cmip.py. Changes done only to HCLIM_perfect_downscale.py file)
