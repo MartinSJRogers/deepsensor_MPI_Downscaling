@@ -2,7 +2,7 @@ import xarray as xr
 import os
 import re
 
-def load_cmip6_variable(cmip6_root, variable_name, start_year, end_year, pressure_level):
+def load_cmip6_variable(cmip6_root, variable_name, start_year, end_year, pressure_level=None):
     """
     Load a CMIP6 4D variable from the archive, filtered by time range and pressure level.
 
@@ -33,7 +33,7 @@ def load_cmip6_variable(cmip6_root, variable_name, start_year, end_year, pressur
             variable_name,
             "gn/latest"
         )
-
+    print(path)
     if not os.path.exists(path):
         raise FileNotFoundError(f"Directory not found: {path}")
 
@@ -62,7 +62,7 @@ def load_cmip6_variable(cmip6_root, variable_name, start_year, end_year, pressur
     ds = ds.sel(time=slice(f"{start_year}-01-01", f"{end_year}-12-31"))
 
     # Filter pressure level (assumes variable is 4D: time, lev, lat, lon)
-    if 'plev' in ds.dims:
+    if pressure_level and 'plev' in ds.dims:
         closest_lev = ds['plev'].sel(plev=pressure_level, method='nearest')
         ds = ds.sel(plev=closest_lev)
 

@@ -29,11 +29,14 @@ val_range = ("1985-02-06T12:00:00.000000000", "1985-02-25T12:00:00.000000000")
 # run_identifier_fn = "decades_training_stack_"+str(l_rate)+"_"+str(num_epochs)+"_"+str(batch_size)+"_N2_C16_G8"
 # print (run_identifier_fn)
 
-# # Imperfect pressure level and variable selection - possible options
-# #selected_vars = ["ua", "va", "ta"]
-# #p_levels = [100000.,  85000.,  70000.,  50000.]
-selected_vars = ["ta"]
-p_levels = [50000.]
+# Imperfect pressure level and variable selection - possible options
+selected_vars = ["ta"] # More to come "zg", , "hus"
+p_levels = [50000.]# 100000.,  85000.,  70000., 50000.
+
+# Convert vars and levels to compact strings
+#Seperate 
+vars_str = "_".join(selected_vars)
+plevs_str = "-".join([str(int(p/1000)) for p in p_levels])  # e.g., 100000 -> "100"
 
 ##### End of manually defined variables #####
 
@@ -47,7 +50,6 @@ def set_variables (json_file):
     except json.JSONDecodeError as e:
         print(f"Error: Failed to decode JSON - {e}")
         sys.exit(1)
-
     # Extract values from JSON
     run_type = config_json.get("run_type")
     l_rate = config_json.get("l_rate")
@@ -58,16 +60,18 @@ def set_variables (json_file):
     date_subsample_factor = config_json.get("date_subsample_factor")
     run_identifier_fn_prefix = config_json.get("run_identifier_fn_prefix")
     num_epochs = config_json.get("num_epochs")
-    run_identifier_fn = run_identifier_fn_prefix+str(l_rate)+"_"+str(num_epochs)+"_"+str(batch_size)+"_N2_C16_G8"
+    run_identifier_fn = run_identifier_fn_prefix+{vars_str}+"__"{plevs_str}+"__"+str(l_rate)+"__"+str(num_epochs)+"__"+str(batch_size)+"__N2_C16_G8__Y{start_year}{end_year}"
+    print(run_identifier_fn)
 
     config_json["rcm_model"] = run_type.split('_')[0] # Returns HCLIM or MetUM
     config_json["model_type"] = run_type.split('_')[1] # Returns perfect or imperfect
 
     ### Check these directories are correct and that you have created a weight and loss directory. 
     if config_json["rcm_model"] == "HCLIM":
-        config_json["BASE_DIR"] = "/gws/nopw/j04/bas_palaeoclim/surfeit/HCLIM/MPI-ESM1-2-LR/hist/"
+        config_json["BASE_DIR"] = "/gws/nopw/j04/bas_palaeoclim/surfeit/HCLIM/MPI-ESM1-2-LR/hist/" # 1984 - 2014
         config_json["ELEV_FN"] = "/gws/nopw/j04/bas_palaeoclim/surfeit/ds_runs/data_input/auxillary_files/orog_clim_ANT11_ANT11_eval_ERA5_fx.nc"
         config_json["LAND_MASK_FN"] = "/gws/nopw/j04/bas_palaeoclim/surfeit/ds_runs/data_input/auxillary_files/lsm_clim_ANT11_ANT11_eval_ERA5_fx.nc"
+        config_json["GCM_unmasked_DIR"] = "/home/users.marrog/palaeoclim/mrogers/historical_unmasked_mpi" # 1970 - 2014 
         config_json["GCM_DIR"] = "/gws/nopw/j04/bas_palaeoclim/surfeit/CMIP6/MPI-ESM1-2-LR/masks"
         config_json["var_tas"] = "tas"
         config_json["y_coord"] = "y"
