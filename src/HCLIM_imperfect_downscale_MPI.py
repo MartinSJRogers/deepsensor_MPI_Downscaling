@@ -2,12 +2,9 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0" # I had to add this to get the code to see the GPU, but may not be necessary
 
 # Now safe to import torch
-import deepsensor.torch
-from deepsensor.model import ConvNP
-from deepsensor.train import Trainer, set_gpu_default_device
-from deepsensor.data import DataProcessor, TaskLoader
+
 from tqdm import tqdm
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import xarray as xr
 import pandas as pd
 import numpy as np
@@ -22,7 +19,10 @@ import pickle
 import multiprocessing
 import time
 from functools import partial
-
+import deepsensor.torch
+from deepsensor.model import ConvNP
+from deepsensor.train import Trainer, set_gpu_default_device
+from deepsensor.data import DataProcessor, TaskLoader
 
 
 import os
@@ -44,6 +44,7 @@ land_mask_iris = iris.load_cube(config.LAND_MASK_FN)
 elevation_iris = iris.load_cube(config.ELEV_FN)
 workers = 8
 task_loader = None
+data_processor = None
 
 def process_gcm_mpi_data(gcm_directory, selected_vars, p_levels):
     """
@@ -253,7 +254,7 @@ def generate_tasks_parallel(dates, context_set, rcm, elevation, progress=False, 
 
 
 
-def compute_val_rmse(model, val_tasks):
+def compute_val_rmse(model, val_tasks, data_processor):
     errors = []
     target_var_ID = task_loader.target_var_IDs[0][0]  # assume 1st target set and 1D
 
@@ -306,13 +307,13 @@ def train_model_mixed_precision(data_processor, task_loader, train_range, date_s
             train_tasks = generate_tasks_parallel_no_pickle(train_dates, context_set, rcm, elevation, progress=False)
     
         # Call the trainer with the tasks and mixed precision
-        batch_losses = trainer(train_tasks)#, scaler=grad_scaler)
+        batch_losses = trainer(train_tasks, batch_size=config.batch_size)#, scaler=grad_scaler)
         
         # Calculate and record losses
         train_loss = np.mean(batch_losses)  # You can compute the loss from batch_losses
 
         # Compute and store validation loss (RMSE)
-        val_loss = compute_val_rmse(model, val_tasks)
+        val_loss = compute_val_rmse(model, val_tasks, data_processor)
         loss_records.append({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss})
     
         # Optionally save the model
@@ -345,6 +346,7 @@ def main():
             input_data.extend(gcm_var_datasets[var].sel(plev=p_level) for p_level in p_levels)
 
         print(f"generate gcm tasks{time.time() - t10:.2f}s")
+        global data_processor
         data_processor = DataProcessor(x1_name="projection_y_coordinate", x2_name="projection_x_coordinate")
         print(f"dataloader created{time.time() - t10:.2f}s")
         outputs = data_processor(input_data)
