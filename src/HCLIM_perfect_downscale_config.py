@@ -15,17 +15,25 @@ import numpy as np
 import torch.optim as optim
 from torch.cuda.amp import GradScaler
 from tqdm import tqdm
-import os
-import config_cmip as config
+import os, sys
+import config_cmip
 
 
-model_run_type = config.run_type
-rcm_directory = config.BASE_DIR
-train_range = config.train_range
-val_range = config.val_range
+if len(sys.argv) != 2:
+        print("Usage: Needs a config json file as as the second argument.")
+        sys.exit(1)
+
+json_file = sys.argv[1]
+
+config = config_cmip.set_variables(json_file)
+
+# model_run_type = config.run_type
+rcm_directory = config["BASE_DIR"]
+train_range = config["train_range"]
+val_range = config["val_range"]
 # Every other how many items in train and validation sets
-date_subsample_factor = config.date_subsample_factor
-batch_size = config.batch_size
+date_subsample_factor = config["date_subsample_factor"]
+batch_size = config["batch_size"]
 
 # Open all files in directory corresponding to surface temperature
 # List all files that contain 'tas_ANT' and end with '.nc'
@@ -33,8 +41,8 @@ rcm_files = [os.path.join(rcm_directory, f) for f in os.listdir(rcm_directory) i
 rcm_opened = xr.open_mfdataset(rcm_files, concat_dim='time', combine='nested', parallel=True) ## To generalise
 
 # Open auxillary data
-elev_opened= xr.open_dataset(config.ELEV_FN)
-land_mask_opened = xr.open_dataset(config.LAND_MASK_FN)
+elev_opened= xr.open_dataset(config["ELEV_FN"])
+land_mask_opened = xr.open_dataset(config["LAND_MASK_FN"])
 
 
 def preprocess_hclim_data(hclim_opened, hclim_elev_opened, hclim_lm_opened):
@@ -60,16 +68,27 @@ def preprocess_MetUM_data(metum_opened, metum_elev_opened, metum_lm_opened):
     """
     TO DO- add in processing steps for metum data
     """
-    metum_raw, metum_elev_raw, metum_lm_raw = metum_opened 
-    return metum_raw, metum_elev_raw, metum_lm_raw
+    # metum_raw, metum_elev_raw, metum_lm_raw = metum_opened 
+    metum_raw = metum_opened.drop_vars(["time_bnds","longitude_bnds","latitude_bnds","grid_longitude_bnds","grid_latitude_bnds","rotated_latitude_longitude"], errors="ignore")
+    metum_elev_raw = metum_elev_opened.drop_vars(["rotated_latitude_longitude"], errors="ignore")
+    metum_lm_raw = metum_lm_opened.drop_vars(["rotated_latitude_longitude"], errors="ignore")
 
-if config.rcm_model == "HCLIM":
-    rcm_raw, elev_raw, land_mask_raw = preprocess_hclim_data(rcm_opened, elev_opened, land_mask_opened)    
-elif config.rcm_model == "MetUM":
-    rcm_raw, elev_raw, land_mask_raw = preprocess_MetUM_data(rcm_opened, elev_opened, land_mask_opened) 
+    # # Rename coordinates
+    # y_lat = "grid_latitude"
+    # x_lon = "grid_longitude"
+
+    return metum_raw, metum_elev_raw, metum_lm_raw #, y_lat, x_lon
+
+if config["rcm_model"] == "HCLIM":
+    rcm_raw, elev_raw, land_mask_raw = preprocess_hclim_data(rcm_opened, elev_opened, land_mask_opened)
+    print (rcm_raw)
+elif config["rcm_model"] == "MetUM":
+    rcm_raw, elev_raw, land_mask_raw = preprocess_MetUM_data(rcm_opened, elev_opened, land_mask_opened)
+    # rcm_raw = rcm_raw.rename({config["var_tas"]:"tas", config["y_coord"]:"y", config["x_coord"]:"x"})
+    print (rcm_raw)
 
 
-def upscale_rcm(rcm_processed):
+def upscale_rcm(rcm_processed, var_tas, y_lat, x_lon):
     """
     Upscale (reduce resolution) of HCLIM or METUM data when running perfect models. 
     """
@@ -77,26 +96,26 @@ def upscale_rcm(rcm_processed):
     y_spacing = 138000  # Grid spacing for 'y'
     x_spacing = 138000  # Grid spacing for 'x'
 
-    new_lat = np.arange(rcm_processed['y'].min(), rcm_processed['y'].max(), y_spacing)
-    new_lon = np.arange(rcm_processed['x'].min(), rcm_processed['x'].max(), x_spacing)
+    new_lat = np.arange(rcm_processed[y_lat].min(), rcm_processed[y_lat].max(), y_spacing)
+    new_lon = np.arange(rcm_processed[x_lon].min(), rcm_processed[x_lon].max(), x_spacing)
     
-    tas_coarse = rcm_processed['tas'].interp(y=new_lat, x=new_lon, method="linear")
+    tas_coarse = rcm_processed[var_tas].interp({y_lat:new_lat, x_lon:new_lon}, method="linear")
     
     rcm_upscaled = xr.Dataset(
         {
-            "tas": tas_coarse
+            var_tas: tas_coarse
         },
         coords={
             "time": rcm_processed["time"],
-            "y": new_lat,
-            "x": new_lon
+            y_lat: new_lat,
+            x_lon: new_lon
         }
     )
     
     return rcm_upscaled
     
-if config.model_type == "perfect":
-    rcm_coarse_raw = upscale_rcm(rcm_raw)
+if config["model_type"] == "perfect":
+    rcm_coarse_raw = upscale_rcm(rcm_raw, config["var_tas"], config["y_coord"], config["x_coord"])
 
 
 def mask_pressure_levels(gcm, var_names):
@@ -130,7 +149,8 @@ def mask_pressure_levels(gcm, var_names):
     
     return masked_gcm
 
-data_processor = DataProcessor(x1_name="y", x2_name="x")
+# data_processor = DataProcessor(x1_name="y", x2_name="x")
+data_processor = DataProcessor(x1_name=config["y_coord"],x2_name = config["x_coord"])
 rcm_coarse, rcm, elevation, land_mask = data_processor([rcm_coarse_raw, rcm_raw, elev_raw, land_mask_raw])
 
 task_loader = TaskLoader(

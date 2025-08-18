@@ -1,0 +1,20 @@
+{
+  "run_identifier_fn_prefix": "decades_training_stack_",
+  "num_epochs": 11,
+  "run_type": "MetUM_perfect",
+  "l_rate": 1e-5,
+  "batch_size": 5,
+  "date_subsample_factor": 5,
+  "data_range": [
+    "2009-01-01T00:00:00.000000000",
+    "2009-01-31T00:00:00.000000000"
+    ],
+  "train_range": [
+    "2009-01-06T00:00:00.000000000",
+    "2009-01-21T00:00:00.000000000"
+    ],
+  "val_range": [
+    "2009-01-21T00:00:00.000000000",
+    "2009-01-23T00:00:00.000000000"
+    ]
+}
