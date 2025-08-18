@@ -8,12 +8,11 @@ from tqdm import tqdm
 import xarray as xr
 import pandas as pd
 import numpy as np
-import os
+
 import interpolate_to_ease2sh
 import iris
 from iris.cube import CubeList
 import torch.optim as optim
-import config_cmip as config
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import pickle
 import multiprocessing
@@ -24,24 +23,35 @@ from deepsensor.model import ConvNP
 from deepsensor.train import Trainer, set_gpu_default_device
 from deepsensor.data import DataProcessor, TaskLoader
 
+import os, sys
+import config_cmip
 
-import os
+
+if len(sys.argv) != 2:
+        print("Usage: Needs a config json file as as the second argument.")
+        sys.exit(1)
+
+json_file = sys.argv[1]
+
+config = config_cmip.set_variables(json_file)
+
 os.environ["LD_LIBRARY_PATH"] = os.environ["CONDA_PREFIX"] + "/lib:" + os.environ.get("LD_LIBRARY_PATH", "")
 
 
-model_run_type = config.run_type
-rcm_directory = config.BASE_DIR
-gcm_directory = config.GCM_DIR
-data_range = config.data_range
-train_range = config.train_range
-val_range = config.val_range
+model_run_type = config["run_type"]
+rcm_directory = config["BASE_DIR"]
+train_range = config["train_range"]
+val_range = config["val_range"]
+gcm_directory = config["GCM_DIR"]
+data_range = config["data_range"]
+
 # Every other how many items in train and validation sets
-date_subsample_factor = config.date_subsample_factor
-batch_size = config.batch_size
-selected_vars = config.selected_vars
-p_levels = config.p_levels
-land_mask_iris = iris.load_cube(config.LAND_MASK_FN)
-elevation_iris = iris.load_cube(config.ELEV_FN)
+date_subsample_factor = config["date_subsample_factor"]
+batch_size = config["batch_size"]
+selected_vars = config["selected_vars"]
+p_levels = config["p_levels"]
+land_mask_iris = iris.load_cube(config["LAND_MASK_FN"])
+elevation_iris = iris.load_cube(config["ELEV_FN"])
 workers = 8
 task_loader = None
 data_processor = None
@@ -114,7 +124,7 @@ def preprocess_hclim_rcm_data(rcm_directory):
     # Merge into a single cube along time
     merged_hclim_cube = CubeList(hclim_cube_list).concatenate_cube()
     rcm_ease2 = interpolate_to_ease2sh.reproject_hclim(merged_hclim_cube).fillna(270)
-    rcm_raw = rcm_ease2.sel(time=slice(*config.data_range))
+    rcm_raw = rcm_ease2.sel(time=slice(*config["data_range"]))
 
     return rcm_raw
 
@@ -128,7 +138,7 @@ def preprocess_MetUM_data(metum_opened, metum_elev_opened, metum_lm_opened):
 def generate_single_task(dates, progress=False, desc="Generating tasks", **kwargs):
     train_tasks = []
     for date in tqdm(dates, disable=not progress):
-            task = task_loader(date, context_sampling=config.context_sampling_strategy,
+            task = task_loader(date, context_sampling=config["context_sampling_strategy"],
                             target_sampling="all")
             task.remove_context_nans().remove_target_nans()
             train_tasks.append(task)
@@ -139,9 +149,9 @@ def generate_single_task(dates, progress=False, desc="Generating tasks", **kwarg
 def init_task_loader(context_set, rcm, elevation):
     global task_loader
     task_loader = TaskLoader(
-        context=context_set * config.context_set_day_count,
+        context=context_set * config["context_set_day_count"],
         target=rcm,
-        context_delta_t=config.delta_t,
+        context_delta_t=config["delta_t"],
         target_delta_t=0,
         aux_at_targets=elevation
     )
@@ -156,16 +166,16 @@ def load_and_clean_no_pickle(date, context_set, rcm, elevation):
     try:
         # Each process creates its own TaskLoader instance
         task_loader = TaskLoader(
-            context=context_set * config.context_set_day_count,
+            context=context_set * config["context_set_day_count"],
             target=rcm,
-            context_delta_t=config.delta_t,
+            context_delta_t=config["delta_t"],
             target_delta_t=0,
             aux_at_targets=elevation
         )
 
         task = task_loader(
             date,
-            context_sampling=config.context_sampling_strategy,
+            context_sampling=config["context_sampling_strategy"],
             target_sampling="all"
         )
         task.remove_context_nans().remove_target_nans()
@@ -206,14 +216,14 @@ def load_and_clean(date, context_set, rcm, elevation):
 
     try:
         task_loader = TaskLoader(
-            context=context_set * config.context_set_day_count,
+            context=context_set * config["context_set_day_count"],
             target=rcm,
-            context_delta_t=config.delta_t,
+            context_delta_t=config["delta_t"],
             target_delta_t=0,
             aux_at_targets=elevation
         )
 
-        task = task_loader(date, context_sampling=config.context_sampling_strategy, target_sampling="all")
+        task = task_loader(date, context_sampling=config["context_sampling_strategy"], target_sampling="all")
         task.remove_context_nans().remove_target_nans()
         print(f"[Worker {pid}] Done {date} in {time.time() - t0:.2f}s")
         return date, task
@@ -277,7 +287,7 @@ def train_model_mixed_precision(data_processor, task_loader, train_range, date_s
     set_gpu_default_device()
     
     model = ConvNP(data_processor, task_loader)
-    opt = optim.Adam(model.model.parameters(), lr=config.l_rate)
+    opt = optim.Adam(model.model.parameters(), lr=config["l_rate"])
     #grad_scaler = GradScaler()  # Initialize GradScaler
     
     val_dates = pd.date_range(val_range[0], val_range[1])[::date_subsample_factor]
@@ -285,7 +295,7 @@ def train_model_mixed_precision(data_processor, task_loader, train_range, date_s
     #val_tasks = generate_tasks(val_dates, progress=False)
     
     loss_records = []
-    trainer = Trainer(model, lr=config.l_rate)
+    trainer = Trainer(model, lr=config["l_rate"])
     
     if all_dates is not None and all_tasks is not None:
         # Mapping from date to task for fast lookup
@@ -294,7 +304,7 @@ def train_model_mixed_precision(data_processor, task_loader, train_range, date_s
         total_days = len(all_dates)
         n_train_dates = total_days // date_subsample_factor
     
-    for epoch in tqdm(range(config.num_epochs), desc="Epochs"):
+    for epoch in tqdm(range(config["num_epochs"]), desc="Epochs"):
         
         if all_dates is not None and all_tasks is not None:
             #Generate tasks as subset from cached tasks
@@ -307,7 +317,7 @@ def train_model_mixed_precision(data_processor, task_loader, train_range, date_s
             train_tasks = generate_tasks_parallel_no_pickle(train_dates, context_set, rcm, elevation, progress=False)
     
         # Call the trainer with the tasks and mixed precision
-        batch_losses = trainer(train_tasks, batch_size=config.batch_size)#, scaler=grad_scaler)
+        batch_losses = trainer(train_tasks, batch_size=config["batch_size"])#, scaler=grad_scaler)
         
         # Calculate and record losses
         train_loss = np.mean(batch_losses)  # You can compute the loss from batch_losses
@@ -318,11 +328,11 @@ def train_model_mixed_precision(data_processor, task_loader, train_range, date_s
     
         # Optionally save the model
         if epoch % 5 == 0:
-            model.save(f"{config.WEIGHT_DIR}/{config.run_type}/{config.run_identifier_fn}_{epoch}.json")
+            model.save(f"{config['weight_dir_path']}/{config['run_identifier_fn']}_{epoch}.json")
 
           # Save losses to CSV
         df_losses = pd.DataFrame(loss_records)
-        loss_log_path = f"{config.LOSS_DIR}/{config.run_type}/{config.run_identifier_fn}_losses.csv"
+        loss_log_path = f"{config['loss_dir_path']}/{config['run_identifier_fn']}_losses.csv"
         df_losses.to_csv(loss_log_path, index=False)
         
     return model
@@ -333,9 +343,9 @@ def main():
     t10 = time.time()
     gcm_var_datasets = process_gcm_mpi_data(gcm_directory, selected_vars, p_levels)
     print(f"processed gcm{time.time() - t10:.2f}s")
-    if config.model_type == "perfect":
+    if config["model_type"] == "perfect":
         print("TODO")
-    elif config.model_type == "imperfect":
+    elif config["model_type"] == "imperfect":
         rcm_raw = preprocess_hclim_rcm_data(rcm_directory)
         print(f"processed hclim{time.time() - t10:.2f}s")
         elev_ease2 = interpolate_to_ease2sh.reproject_hclim(elevation_iris).fillna(0)
