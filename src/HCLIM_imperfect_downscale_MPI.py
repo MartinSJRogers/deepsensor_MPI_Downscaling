@@ -285,8 +285,12 @@ def train_model_mixed_precision(data_processor, task_loader, train_range, date_s
                                context_set=None, rcm=None, elevation=None):
 
     set_gpu_default_device()
-    
-    model = ConvNP(data_processor, task_loader)
+    if config['model_fn'] is not None:
+        print(config['model_fn'])
+        model = ConvNP(data_processor, task_loader, config['model_fn'])
+        print('using pretrained weights')
+    else:
+        model = ConvNP(data_processor, task_loader, unet_channels=(32,64,128,256), unet_resize_convs=True)
     opt = optim.Adam(model.model.parameters(), lr=config["l_rate"])
     #grad_scaler = GradScaler()  # Initialize GradScaler
     
