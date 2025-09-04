@@ -59,18 +59,20 @@ def set_variables (json_file):
     val_range = config_json.get("val_range")
     date_subsample_factor = config_json.get("date_subsample_factor")
     run_identifier_fn_prefix = config_json.get("run_identifier_fn_prefix")
+    model_fn = config_json.get("model_fn")
     num_epochs = config_json.get("num_epochs")
     selected_vars = config_json.get("selected_vars")
     p_levels = config_json.get("p_levels")
     # Extract years for file names
     start_year = data_range[0][:4]
     end_year = data_range[1][:4]
+    
 
     #Seperate 
     vars_str = "_".join(selected_vars)
     plevs_str = "-".join([str(int(p/1000)) for p in p_levels])  # e.g., 100000 -> "100"
     
-    config_json["run_identifier_fn"] = (f"{run_identifier_fn_prefix}__{vars_str}__str{plevs_str}__{l_rate}__{num_epochs}__{batch_size}__N2_C16_G8__Y{start_year}{end_year}")
+    config_json["run_identifier_fn"] = (f"{run_identifier_fn_prefix}__{vars_str}__{plevs_str}__{l_rate}__{num_epochs}__{batch_size}__N2_C16_G8__Y{start_year}{end_year}")
 
     config_json["rcm_model"] = run_type.split('_')[0] # Returns HCLIM or MetUM
     config_json["model_type"] = run_type.split('_')[1] # Returns perfect or imperfect
