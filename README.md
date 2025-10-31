@@ -1,2 +1,2 @@
 # DeepSensor_downscaling
-Using DeepSensor to downscale low resoultion climate model data.
+This repository applies the DeepSensor package to use Convolutional Neural Processes to downscale Global Climate Model (GCM) Data. The project currently uses MPI GCM and HCLIM Regional Climate Model data.  
